@@ -143,7 +143,14 @@ if uploaded_file:
             # PDF Feedback Download
             st.download_button(
                 label="📥 Download Feedback as PDF",
-                data=convert_html_to_pdf(feedback),
+                data=convert_html_to_pdf(
+                    feedback_text=feedback,
+                    job_title=job_role,
+                    category=category,
+                    ats_score=final_score,
+                    freshness=freshness,
+                    jd_keywords=jd_keywords
+                ),
                 file_name="resume_feedback.pdf",
                 mime="application/pdf"
             )
