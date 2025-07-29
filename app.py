@@ -55,7 +55,11 @@ job_role = st.sidebar.text_input("🎯 Target Job Title", value="Data Scientist"
 detail_level = st.sidebar.radio("✍️ Feedback Style", ["Brief", "Detailed"], horizontal=True)
 uploaded_file = st.sidebar.file_uploader("📎 Upload Resume (PDF only)", type="pdf")
 
-# ---- Title & Intro ----
+# ---- JD Input ----
+st.subheader("📝 Paste Job Description (Optional)")
+jd_text = st.text_area("Helps tailor feedback and improve keyword matching.", height=200)
+
+# ---- Title ----
 st.title("📄 AI Resume Screener")
 st.markdown("""
 Upload your resume to receive:
@@ -67,7 +71,7 @@ Upload your resume to receive:
 - 📌 JD keyword extraction  
 """)
 
-# ---- Prediction Function ----
+# ---- ML Category Predictor ----
 def predict_category(resume_text):
     return label_encoder.inverse_transform(pipeline.predict([resume_text]))[0]
 
@@ -75,28 +79,28 @@ def predict_category(resume_text):
 if uploaded_file:
     with st.spinner("🔎 Analyzing your resume..."):
         try:
-            # 1. Extract text
             resume_text = extract_text_from_pdf(uploaded_file)
 
-            # 2. JD Keywords
-            jd_keywords = extract_keywords_from_jd(job_role) if job_role else []
+            # JD Keywords
+            jd_keywords = extract_keywords_from_jd(jd_text) if jd_text else extract_keywords_from_jd(job_role)
 
-            # 3. LLM Resume Feedback
+            # LLM Feedback
             feedback = score_resume(
                 resume_text,
                 job_title=job_role,
                 api_key=cohere_api_key,
-                mode=detail_level.lower()
+                mode=detail_level.lower(),
+                job_description=jd_text
             )
             st.success("✅ LLM Feedback Generated")
             st.markdown(feedback)
 
-            # 4. ML Resume Category
+            # Resume Category (ML)
             category = predict_category(resume_text)
             st.subheader("🧠 Predicted Resume Category")
             st.markdown(f"**{category}**")
 
-            # 5. ATS Match Score
+            # ATS Match
             st.subheader("📊 ATS Match Score")
 
             hardcoded_score, missing = calculate_ats_match(resume_text, job_role)
@@ -118,12 +122,12 @@ if uploaded_file:
             else:
                 st.markdown("_Your resume contains all relevant keywords!_")
 
-            # 6. Resume Freshness
+            # Freshness
             freshness = estimate_resume_freshness(resume_text)
             st.subheader("📅 Resume Freshness Estimate")
             st.markdown(f"🗓️ Last update appears to be from: **{freshness}**")
 
-            # 7. Similar Roles
+            # Role Suggestions
             similar_roles = suggest_similar_roles(resume_text)
             st.subheader("💡 Suggested Job Roles")
             if similar_roles:
@@ -131,12 +135,12 @@ if uploaded_file:
             else:
                 st.markdown("_No strong matches found._")
 
-            # 8. JD Keywords Display
+            # JD Keyword Display
             if jd_keywords:
                 st.subheader("📌 Extracted JD Keywords")
                 st.markdown(", ".join(jd_keywords))
 
-            # 9. Download PDF
+            # PDF Feedback Download
             st.download_button(
                 label="📥 Download Feedback as PDF",
                 data=convert_html_to_pdf(feedback),

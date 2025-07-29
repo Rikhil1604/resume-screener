@@ -1,18 +1,21 @@
 import requests
 
-def score_resume(resume_text, job_title, api_key, mode="brief"):
-    if not job_title:
-        job_title = "general role"
+def score_resume(resume_text, job_title="", api_key="", mode="brief", job_description=""):
+    # Use job description if available, else use title
+    if job_description.strip():
+        context = f"for the job described below:\n\"\"\"\n{job_description.strip()}\n\"\"\""
+    elif job_title.strip():
+        context = f"for the job title: **{job_title.strip()}**"
+    else:
+        context = "for a general corporate role"
 
     prompt = f"""
 You are a helpful AI assistant skilled at evaluating resumes for job applications.
 
-Evaluate the following resume for the job title: **{job_title}**.
+Evaluate the following resume {context}.
 
 Resume:
-\"\"\"
-{resume_text}
-\"\"\"
+\"\"\"{resume_text}\"\"\"
 
 Provide the following:
 1. A score out of 100 indicating how suitable the resume is for this role.
@@ -40,7 +43,7 @@ Then list the strengths and areas to improve clearly.
     response.raise_for_status()
     result = response.json()
 
-    # 🔄 Extract the message text safely
+    # Return response text cleanly
     try:
         return result["text"].strip()
     except KeyError:
