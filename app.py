@@ -54,6 +54,7 @@ st.sidebar.title("🎛️ Options")
 job_role = st.sidebar.text_input("🎯 Target Job Title", value="Data Scientist")
 detail_level = st.sidebar.radio("✍️ Feedback Style", ["Brief", "Detailed"], horizontal=True)
 uploaded_file = st.sidebar.file_uploader("📎 Upload Resume (PDF only)", type="pdf")
+generate_button = st.sidebar.button("🚀 Generate Analysis", type="primary")
 
 # ---- JD Input ----
 st.subheader("📝 Paste Job Description (Optional)")
@@ -62,7 +63,7 @@ jd_text = st.text_area("Helps tailor feedback and improve keyword matching.", he
 # ---- Title ----
 st.title("📄 AI Resume Screener")
 st.markdown("""
-Upload your resume to receive:
+Upload your resume and click the Generate Analysis button to receive:
 - ✅ LLM-powered job-fit feedback
 - 🧠 Resume category prediction (ML)
 - 📊 ATS score based on JD
@@ -76,7 +77,7 @@ def predict_category(resume_text):
     return label_encoder.inverse_transform(pipeline.predict([resume_text]))[0]
 
 # ---- Main Logic ----
-if uploaded_file:
+if uploaded_file and generate_button:
     with st.spinner("🔎 Analyzing your resume..."):
         try:
             resume_text = extract_text_from_pdf(uploaded_file)
@@ -166,3 +167,5 @@ if uploaded_file:
                 st.error(f"❌ HTTP error: {e}")
         except Exception as e:
             st.error(f"❌ Unexpected error: {e}")
+elif uploaded_file and not generate_button:
+    st.info("📄 Resume uploaded. Click 'Generate Analysis' in the sidebar to analyze your resume.")
