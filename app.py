@@ -6,10 +6,10 @@ from resume_parser import extract_text_from_pdf, estimate_resume_freshness
 from ats_matcher import calculate_ats_match, suggest_similar_roles, extract_keywords_from_jd
 from pdf_generator import convert_html_to_pdf
 
-# ---- Setup ----
+# Setup 
 st.set_page_config(page_title="AI Resume Screener", layout="centered")
 
-# 🌙 Custom Dark Theme Styles
+# Dark Theme Style
 st.markdown("""
     <style>
         body {
@@ -44,23 +44,23 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ---- Load API Key and Models ----
+# Load API Key and Models
 cohere_api_key = st.secrets["cohere"]["api_key"]
 pipeline = joblib.load("models/svm_pipeline.pkl")
 label_encoder = joblib.load("models/label_encoder.pkl")
 
-# ---- Sidebar Controls ----
+# Sidebar Controls 
 st.sidebar.title("🎛️ Options")
 job_role = st.sidebar.text_input("🎯 Target Job Title", value="Data Scientist")
 detail_level = st.sidebar.radio("✍️ Feedback Style", ["Brief", "Detailed"], horizontal=True)
 uploaded_file = st.sidebar.file_uploader("📎 Upload Resume (PDF only)", type="pdf")
 generate_button = st.sidebar.button("🚀 Generate Analysis", type="primary")
 
-# ---- JD Input ----
+# JD Input
 st.subheader("📝 Paste Job Description (Optional)")
 jd_text = st.text_area("Helps tailor feedback and improve keyword matching.", height=200)
 
-# ---- Title ----
+# Title 
 st.title("📄 AI Resume Screener")
 st.markdown("""
 Upload your resume and click the Generate Analysis button to receive:
@@ -72,11 +72,11 @@ Upload your resume and click the Generate Analysis button to receive:
 - 📌 JD keyword extraction  
 """)
 
-# ---- ML Category Predictor ----
+# ML Category Predictor
 def predict_category(resume_text):
     return label_encoder.inverse_transform(pipeline.predict([resume_text]))[0]
 
-# ---- Main Logic ----
+# Main Logic 
 if uploaded_file and generate_button:
     with st.spinner("🔎 Analyzing your resume..."):
         try:
@@ -123,7 +123,7 @@ if uploaded_file and generate_button:
             else:
                 st.markdown("_Your resume contains all relevant keywords!_")
 
-            # Freshness
+            # Recency
             freshness = estimate_resume_freshness(resume_text)
             st.subheader("📅 Resume Freshness Estimate")
             st.markdown(f"🗓️ Last update appears to be from: **{freshness}**")
