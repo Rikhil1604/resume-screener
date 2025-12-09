@@ -1,6 +1,8 @@
+import os
 import streamlit as st
-import requests
 import joblib
+import traceback
+
 from scorer import score_resume
 from resume_parser import extract_text_from_pdf, estimate_resume_freshness
 from ats_matcher import calculate_ats_match, suggest_similar_roles, extract_keywords_from_jd
@@ -44,10 +46,26 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Load API Key and Models
-cohere_api_key = st.secrets["cohere"]["api_key"]
-pipeline = joblib.load("models/svm_pipeline.pkl")
-label_encoder = joblib.load("models/label_encoder.pkl")
+# Load Cohere API Key (safe)
+cohere_api_key = None
+try:
+    cohere_api_key = st.secrets["cohere"]["api_key"]
+except Exception:
+    # optional: attempt to read environment variable if you set it that way
+    cohere_api_key = os.environ.get("COHERE_API_KEY")
+    if not cohere_api_key:
+        st.warning("⚠️ Cohere API key not found. Add it to Streamlit Secrets as st.secrets['cohere']['api_key'] or set COHERE_API_KEY env var.")
+
+# Load ML models safely (fail gracefully on cloud)
+pipeline = None
+label_encoder = None
+try:
+    pipeline = joblib.load("models/svm_pipeline.pkl")
+    label_encoder = joblib.load("models/label_encoder.pkl")
+except FileNotFoundError:
+    st.info("⚠️ ML models not found in /models. Category prediction will be disabled until models are added.")
+except Exception as e:
+    st.warning(f"⚠️ Error loading ML models: {e}")
 
 # Sidebar Controls 
 st.sidebar.title("🎛️ Options")
@@ -72,29 +90,38 @@ Upload your resume and click the Generate Analysis button to receive:
 - 📌 JD keyword extraction  
 """)
 
-# ML Category Predictor
+# ML Category Predictor (safe)
 def predict_category(resume_text):
-    return label_encoder.inverse_transform(pipeline.predict([resume_text]))[0]
+    if pipeline is None or label_encoder is None:
+        return "N/A (models missing)"
+    try:
+        return label_encoder.inverse_transform(pipeline.predict([resume_text]))[0]
+    except Exception:
+        return "N/A (prediction failed)"
 
 # Main Logic 
 if uploaded_file and generate_button:
     with st.spinner("🔎 Analyzing your resume..."):
+        feedback = None
         try:
             resume_text = extract_text_from_pdf(uploaded_file)
 
-            # JD Keywords
+            # JD Keywords - fallback to job_role if JD not provided
             jd_keywords = extract_keywords_from_jd(jd_text) if jd_text else extract_keywords_from_jd(job_role)
 
             # LLM Feedback
-            feedback = score_resume(
-                resume_text,
-                job_title=job_role,
-                api_key=cohere_api_key,
-                mode=detail_level.lower(),
-                job_description=jd_text
-            )
-            st.success("✅ LLM Feedback Generated")
-            st.markdown(feedback)
+            if not cohere_api_key:
+                st.error("❌ Missing Cohere API key. Add it to Streamlit secrets and redeploy.")
+            else:
+                feedback = score_resume(
+                    resume_text,
+                    job_title=job_role,
+                    api_key=cohere_api_key,
+                    mode=detail_level.lower(),
+                    job_description=jd_text
+                )
+                st.success("✅ LLM Feedback Generated")
+                st.markdown(feedback)
 
             # Resume Category (ML)
             category = predict_category(resume_text)
@@ -103,7 +130,6 @@ if uploaded_file and generate_button:
 
             # ATS Match
             st.subheader("📊 ATS Match Score")
-
             hardcoded_score, missing = calculate_ats_match(resume_text, job_role)
 
             jd_score = 0
@@ -141,11 +167,11 @@ if uploaded_file and generate_button:
                 st.subheader("📌 Extracted JD Keywords")
                 st.markdown(", ".join(jd_keywords))
 
-            # PDF Feedback Download
+            # PDF Feedback Download — ensure feedback fallback
             st.download_button(
                 label="📥 Download Feedback as PDF",
                 data=convert_html_to_pdf(
-                    feedback_text=feedback,
+                    feedback_text=feedback if feedback else "No feedback generated.",
                     job_title=job_role,
                     category=category,
                     ats_score=final_score,
@@ -156,16 +182,20 @@ if uploaded_file and generate_button:
                 mime="application/pdf"
             )
 
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 401:
-                st.error("❌ Invalid Cohere API key.")
-            elif e.response.status_code == 429:
+        except Exception as e:
+            # Inspect for HTTP-like status codes (covers Cohere SDK or requests)
+            status = getattr(getattr(e, "response", None), "status_code", None) or getattr(e, "status_code", None)
+            if status == 401:
+                st.error("❌ Invalid Cohere API key or unauthorized access.")
+            elif status == 429:
                 st.error("❌ Rate limit exceeded. Try again later.")
-            elif e.response.status_code == 500:
+            elif status == 500:
                 st.error("❌ Server error. Please try again later.")
             else:
-                st.error(f"❌ HTTP error: {e}")
-        except Exception as e:
-            st.error(f"❌ Unexpected error: {e}")
+                st.error(f"❌ Unexpected error: {e}")
+                # For debugging only (remove in production)
+                st.text("Debug info (traceback):")
+                st.text(traceback.format_exc())
+
 elif uploaded_file and not generate_button:
     st.info("📄 Resume uploaded. Click 'Generate Analysis' in the sidebar to analyze your resume.")
